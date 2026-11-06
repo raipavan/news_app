@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: thaja-suddi
+    runtime: node
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    autoDeploy: true
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run migrate && npm run seed && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: thaja-suddi-db
+          property: connectionString
+      - key: ACCESS_TOKEN_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: ACCESS_TOKEN_TTL
+        value: 30m
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: "14"
+      - key: UPLOAD_MAX_BYTES
+        value: "8388608"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SEED_DEMO
+        value: "false"
+      - key: ALLOW_DEV_RESET_TOKENS
+        value: "false"
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_ADMIN_NAME
+        value: Administrator
+
+databases:
+  - name: thaja-suddi-db
+    databaseName: thaja_suddi
+    plan: free
+    region: singapore

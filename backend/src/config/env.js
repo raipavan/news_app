@@ -34,7 +34,10 @@ function parseTrustProxy(value) {
   return value;
 }
 
-const publicBaseUrl = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+const publicBaseUrl = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || '').replace(
+  /\/$/,
+  ''
+);
 const defaultCorsOrigins = isProd
   ? []
   : ['http://localhost:5173', 'http://127.0.0.1:5173'];
