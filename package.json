@@ -12,6 +12,7 @@
     "db:down": "docker compose down",
     "migrate": "npm --workspace backend run migrate",
     "seed": "npm --workspace backend run seed",
+    "admin:create": "npm --workspace backend run admin:create --",
     "build": "npm --workspace frontend run build",
     "start": "npm --workspace backend start",
     "dev": "concurrently -n api,web -c red,cyan \"npm --workspace backend run dev\" \"npm --workspace frontend run dev\"",

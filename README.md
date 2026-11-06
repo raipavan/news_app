@@ -148,6 +148,14 @@ Before production:
 3. Run `npm run seed` with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` (12+ characters). Production seeding creates roles, the bootstrap super admin, districts, categories and taluks only — it does not create demo accounts or content. If the two admin variables are missing, seeding still completes but skips the super admin and logs a warning. `SEED_DEMO=true` is a staging-only override.
 4. Terminate TLS at the proxy, keep `ALLOW_DEV_RESET_TOKENS` unset, and run `npm run build` without `VITE_SHOW_DEMO_ACCOUNTS`.
 
+If you need to add or repair a Super Admin after deployment, run the CLI against the database that `DATABASE_URL` points to:
+
+```bash
+npm run admin:create -- editor@example.com 'a-passphrase-of-12-plus-chars' 'Display Name'
+```
+
+It creates the account (or resets the password of an existing one), sets `status = 'active'` and binds the `super_admin` role. The password is bcrypt-hashed in memory and never stored in the repo, so pick a value you will keep.
+
 ## Project layout
 
 ```
@@ -172,6 +180,7 @@ shared/site.css     shared design system
 | `npm run db:up` / `db:down` | Start/stop PostgreSQL |
 | `npm run migrate` | Apply schema |
 | `npm run seed` | Seed taxonomy; development/staging also adds demo content and accounts |
+| `npm run admin:create -- <email> <password> [name]` | Create or reset a Super Admin against `DATABASE_URL` |
 | `npm run build` | Build the SPA into `frontend/dist` |
 | `npm run start` | Start Express (serves API, SSR pages, SPA and static assets) |
 | `npm run dev` | Run API and Vite dev server together |
