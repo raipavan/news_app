@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Thaja Suddi">
+  <rect width="512" height="512" rx="24" fill="#a4162a"/>
+  <rect x="0" y="0" width="512" height="16" fill="#b3862f"/>
+  <rect x="64" y="118" width="88" height="8" fill="#f7f3ea" opacity="0.85"/>
+  <text x="64" y="330" font-family="Georgia, 'Times New Roman', serif" font-size="250" font-weight="700" fill="#fffdf8">T</text>
+  <text x="64" y="420" font-family="Arial, sans-serif" font-size="34" letter-spacing="8" fill="#f3e8ce">SUDDI</text>
+  <circle cx="420" cy="392" r="44" fill="none" stroke="#f3e8ce" stroke-width="6"/>
+  <circle cx="420" cy="392" r="16" fill="#f3e8ce"/>
+</svg>
