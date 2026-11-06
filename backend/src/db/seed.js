@@ -660,35 +660,36 @@ async function main() {
       users[key] = id;
     }
   } else {
-    console.log('[seed] creating bootstrap super admin');
     const email = (process.env.SEED_ADMIN_EMAIL || '').trim().toLowerCase();
     const password = process.env.SEED_ADMIN_PASSWORD || '';
     if (!email || password.length < 12) {
-      throw new Error(
-        'Production seed requires SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (12+ characters). ' +
-          'Set SEED_DEMO=true only for staging environments.'
+      console.warn(
+        '[seed] SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (12+ characters) are not set; ' +
+          'skipping the bootstrap Super Admin. Add both variables and redeploy to create it.'
       );
-    }
-    const existing = await pool.query('SELECT id FROM users WHERE lower(email) = $1', [email]);
-    let id;
-    if (existing.rowCount) {
-      id = existing.rows[0].id;
     } else {
-      const hash = await bcrypt.hash(password, 12);
-      const inserted = await pool.query(
-        `INSERT INTO users(name, email, password_hash, status, can_publish)
-         VALUES ($1, $2, $3, 'active', TRUE) RETURNING id`,
-        [process.env.SEED_ADMIN_NAME || 'Administrator', email, hash]
+      console.log('[seed] creating bootstrap super admin');
+      const existing = await pool.query('SELECT id FROM users WHERE lower(email) = $1', [email]);
+      let id;
+      if (existing.rowCount) {
+        id = existing.rows[0].id;
+      } else {
+        const hash = await bcrypt.hash(password, 12);
+        const inserted = await pool.query(
+          `INSERT INTO users(name, email, password_hash, status, can_publish)
+           VALUES ($1, $2, $3, 'active', TRUE) RETURNING id`,
+          [process.env.SEED_ADMIN_NAME || 'Administrator', email, hash]
+        );
+        id = inserted.rows[0].id;
+      }
+      await pool.query(
+        `INSERT INTO user_roles(user_id, role_id)
+         SELECT $1, id FROM roles WHERE role_name = 'super_admin'
+         ON CONFLICT DO NOTHING`,
+        [id]
       );
-      id = inserted.rows[0].id;
+      users.admin = id;
     }
-    await pool.query(
-      `INSERT INTO user_roles(user_id, role_id)
-       SELECT $1, id FROM roles WHERE role_name = 'super_admin'
-       ON CONFLICT DO NOTHING`,
-      [id]
-    );
-    users.admin = id;
   }
 
   console.log('[seed] creating districts and categories');
@@ -764,7 +765,7 @@ async function main() {
 
   if (!demo) {
     await markSeedVersion();
-    console.log('[seed] production seed complete: roles, admin, districts, categories and taluks only');
+    console.log('[seed] production seed complete: roles, districts, categories, taluks and admin (if configured)');
     await pool.end();
     return;
   }

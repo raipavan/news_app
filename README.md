@@ -145,7 +145,7 @@ Before production:
 
 1. Set `NODE_ENV=production`. Startup fails unless `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET` (32+ random characters each), `DATABASE_URL`, and an HTTPS `PUBLIC_BASE_URL` are set.
 2. Set `CORS_ORIGINS` to the exact public origin(s) and `TRUST_PROXY` to the number of reverse-proxy hops (or `false`).
-3. Run `npm run seed` with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` (12+ characters). Production seeding creates roles, the bootstrap super admin, districts, categories and taluks only — it does not create demo accounts or content. `SEED_DEMO=true` is a staging-only override.
+3. Run `npm run seed` with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` (12+ characters). Production seeding creates roles, the bootstrap super admin, districts, categories and taluks only — it does not create demo accounts or content. If the two admin variables are missing, seeding still completes but skips the super admin and logs a warning. `SEED_DEMO=true` is a staging-only override.
 4. Terminate TLS at the proxy, keep `ALLOW_DEV_RESET_TOKENS` unset, and run `npm run build` without `VITE_SHOW_DEMO_ACCOUNTS`.
 
 ## Project layout
