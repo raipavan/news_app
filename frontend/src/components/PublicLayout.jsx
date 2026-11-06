@@ -126,7 +126,16 @@ function Header({ categories, ticker }) {
                   {t('submitNews')}
                 </Link>
               </>
-            ) : null}
+            ) : (
+              <>
+                <Link className="btn btn-sm btn-outline" to="/login">
+                  {t('signIn')}
+                </Link>
+                <Link className="btn btn-sm" to="/register">
+                  {t('signUp')}
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

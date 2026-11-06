@@ -75,6 +75,7 @@ export const LABELS = {
     password: 'Password',
     forgot: 'Forgot password?',
     noAccount: 'Need a reader account?',
+    signUp: 'Sign up',
     createAccount: 'Create reader account',
     registerTitle: 'Create a reader account',
     registerSub:
@@ -190,6 +191,7 @@ export const LABELS = {
     password: 'ಪಾಸ್‌ವರ್ಡ್',
     forgot: 'ಪಾಸ್‌ವರ್ಡ್ ಮರೆತಿರಾ?',
     noAccount: 'ಓದುಗ ಖಾತೆ ಬೇಕೇ?',
+    signUp: 'ನೋಂದಣಿ',
     createAccount: 'ಓದುಗ ಖಾತೆ ತೆರೆಯಿರಿ',
     registerTitle: 'ಓದುಗ ಖಾತೆ ತೆರೆಯಿರಿ',
     registerSub: 'ಓದುಗ ಖಾತೆಗಳು ಸುದ್ದಿಗಳನ್ನು ಉಳಿಸಬಹುದು ಮತ್ತು ಪ್ರತಿಕ್ರಿಯಿಸಬಹುದು. ವರದಿಗಾರ, ಸಂಪಾದಕ ಮತ್ತು ಕರ್ತೃ ಖಾತೆಗಳನ್ನು ಸೂಪರ್ ಅಡ್ಮಿನ್ ಮಾತ್ರ ರಚಿಸುತ್ತಾರೆ.',

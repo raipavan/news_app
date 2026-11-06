@@ -10,6 +10,8 @@ router.post('/refresh', ctrl.refresh);
 router.post('/logout', ctrl.logout);
 router.post('/forgot-password', ctrl.forgotPassword);
 router.post('/reset-password', ctrl.resetPassword);
+router.get('/dev-accounts', ctrl.devAccounts);
+router.post('/dev-login', ctrl.devLogin);
 router.get('/me', authenticate, ctrl.me);
 
 module.exports = router;

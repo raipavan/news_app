@@ -103,6 +103,46 @@ const register = asyncHandler(async (req, res) => {
   res.status(201).json({ accessToken, user });
 });
 
+const DEV_ACCOUNTS = [
+  { role: 'super_admin', label: 'Super Admin', email: 'admin@thajasuddi.in' },
+  { role: 'editor', label: 'Editor', email: 'editor@thajasuddi.in' },
+  { role: 'reporter', label: 'Reporter', email: 'reporter@thajasuddi.in' },
+  { role: 'contributor', label: 'Contributor', email: 'contributor@thajasuddi.in' },
+  { role: 'reader', label: 'Reader', email: 'reader@thajasuddi.in' },
+];
+
+const devAccounts = asyncHandler(async (req, res) => {
+  if (env.isProd) {
+    res.json({ enabled: false, accounts: [] });
+    return;
+  }
+  res.json({
+    enabled: true,
+    accounts: DEV_ACCOUNTS.map(({ role, label }) => ({ role, label })),
+  });
+});
+
+const devLogin = asyncHandler(async (req, res) => {
+  if (env.isProd) throw new ApiError(404, 'Not found', 'NOT_FOUND');
+  const data = z.object({ role: z.string().trim() }).parse(req.body);
+  const account = DEV_ACCOUNTS.find((candidate) => candidate.role === data.role);
+  if (!account) throw new ApiError(422, 'Unknown demo role', 'VALIDATION');
+  const row = await one(
+    `SELECT id, status FROM users WHERE lower(email) = lower($1) LIMIT 1`,
+    [account.email]
+  );
+  if (!row) {
+    throw new ApiError(404, 'Demo account not seeded. Run npm run seed.', 'DEV_ACCOUNT_MISSING');
+  }
+  if (row.status !== 'active') {
+    throw new ApiError(403, `Demo account is ${row.status}`, 'ACCOUNT_INACTIVE');
+  }
+  const accessToken = await issueSession(res, row.id);
+  const user = await loadUser(row.id);
+  await audit(null, row.id, 'auth.dev_login', 'user', row.id, { role: account.role });
+  res.json({ accessToken, user });
+});
+
 const login = asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
   const row = await one(
@@ -218,6 +258,8 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getUserWithRoles,
+  devAccounts,
+  devLogin,
   COOKIE_NAME,
   COOKIE_PATH,
 };

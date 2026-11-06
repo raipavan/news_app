@@ -47,6 +47,13 @@ export function AuthProvider({ children }) {
     return res.user;
   }, []);
 
+  const devLogin = useCallback(async (role) => {
+    const res = await api.post('/auth/dev-login', { role }, { auth: false });
+    setToken(res.accessToken);
+    setUser(res.user);
+    return res.user;
+  }, []);
+
   const register = useCallback(async (data) => {
     const res = await api.post('/auth/register', data, { auth: false });
     setToken(res.accessToken);
@@ -72,8 +79,8 @@ export function AuthProvider({ children }) {
   const isStaff = Boolean(user?.roles?.includes('super_admin') || user?.roles?.includes('editor'));
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, refreshUser: bootstrap, hasRole, hasPermission, isStaff }),
-    [user, loading, login, register, logout, bootstrap, hasRole, hasPermission, isStaff]
+    () => ({ user, loading, login, devLogin, register, logout, refreshUser: bootstrap, hasRole, hasPermission, isStaff }),
+    [user, loading, login, devLogin, register, logout, bootstrap, hasRole, hasPermission, isStaff]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
