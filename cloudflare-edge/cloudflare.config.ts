@@ -12,7 +12,7 @@ export default defineConfig({
       }),
     },
     env: {
-      ORIGIN_BASE_URL: 'https://tajasuddinews.in',
+      ORIGIN_BASE_URL: 'https://tajanewssuddi.in',
       SHARD_COUNT: '4',
       FLUSH_INTERVAL_MS: '60000',
       INTERNAL_FLUSH_SECRET: bindings.secret(),
@@ -22,8 +22,8 @@ export default defineConfig({
     },
     // Mount ONLY on high-frequency write routes so public GET reads stay on unlimited free CDN cache:
     // routes: [
-    //   { pattern: 'tajasuddinews.in/api/v1/articles/*/view', zone_name: 'tajasuddinews.in' },
-    //   { pattern: 'tajasuddinews.in/api/v1/public/ads/*/impression', zone_name: 'tajasuddinews.in' },
+    //   { pattern: 'tajanewssuddi.in/api/v1/articles/*/view', zone_name: 'tajanewssuddi.in' },
+    //   { pattern: 'tajanewssuddi.in/api/v1/public/ads/*/impression', zone_name: 'tajanewssuddi.in' },
     // ],
   },
 });

@@ -1,13 +1,13 @@
-# Isolated VPS production stack for tajasuddinews.in
+# Isolated VPS production stack for tajanewssuddi.in
 # Uses explicit compose project name, isolated bridge network, dedicated volume,
 # memory caps, zero host port bindings, and Cloudflare Tunnel ingress so existing
 # VPS containers and ports are never affected.
-name: tajasuddinews
+name: tajanewssuddi
 
 services:
   db:
     image: postgres:16-alpine
-    container_name: tajasuddinews_db
+    container_name: tajanewssuddi_db
     restart: unless-stopped
     mem_limit: 512m
     logging:
@@ -30,21 +30,21 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in shell or .env}
       POSTGRES_DB: ${POSTGRES_DB:-karnataka_news}
     volumes:
-      - tajasuddinews_pgdata:/var/lib/postgresql/data
+      - tajanewssuddi_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-news} -d ${POSTGRES_DB:-karnataka_news}"]
       interval: 5s
       timeout: 5s
       retries: 20
     networks:
-      - tajasuddinews_net
+      - tajanewssuddi_net
 
   app:
     build:
       context: .
       args:
-        VITE_MEDIA_BASE_URL: ${VITE_MEDIA_BASE_URL:-https://media.tajasuddinews.in}
-    container_name: tajasuddinews_app
+        VITE_MEDIA_BASE_URL: ${VITE_MEDIA_BASE_URL:-https://media.tajanewssuddi.in}
+    container_name: tajanewssuddi_app
     restart: unless-stopped
     mem_limit: 512m
     logging:
@@ -57,13 +57,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Zero host ports exposed; Cloudflare Tunnel connects directly inside tajasuddinews_net.
+    # Zero host ports exposed; Cloudflare Tunnel connects directly inside tajanewssuddi_net.
     networks:
-      - tajasuddinews_net
+      - tajanewssuddi_net
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: tajasuddinews_tunnel
+    container_name: tajanewssuddi_tunnel
     restart: unless-stopped
     mem_limit: 128m
     logging:
@@ -77,12 +77,12 @@ services:
     depends_on:
       - app
     networks:
-      - tajasuddinews_net
+      - tajanewssuddi_net
 
 volumes:
-  tajasuddinews_pgdata:
+  tajanewssuddi_pgdata:
 
 networks:
-  tajasuddinews_net:
-    name: tajasuddinews_net
+  tajanewssuddi_net:
+    name: tajanewssuddi_net
     driver: bridge
