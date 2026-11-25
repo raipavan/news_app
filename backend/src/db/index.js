@@ -3,7 +3,7 @@ const env = require('../config/env');
 
 const pool = new Pool({
   connectionString: env.databaseUrl,
-  max: 12,
+  max: env.dbPoolMax,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
 });

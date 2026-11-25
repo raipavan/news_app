@@ -10,8 +10,37 @@ const {
   listCards,
   countCards,
 } = require('../services/articleService');
+const {
+  extractInlineImageIds,
+  markImagesAdProtected,
+  deleteImageIfUnreferenced,
+} = require('../services/imageService');
+const { purgeArticle } = require('../services/cloudflareCache');
 
 const LANGS = ['kn', 'en'];
+
+async function loadPurgeContext(articleId) {
+  const [meta, translations] = await Promise.all([
+    one(
+      `SELECT c.slug AS category_slug, d.slug AS district_slug
+         FROM articles a
+         LEFT JOIN categories c ON c.id = a.category_id
+         LEFT JOIN districts d ON d.id = a.district_id
+        WHERE a.id = $1`,
+      [articleId]
+    ),
+    query(
+      `SELECT language, slug FROM article_translations
+        WHERE article_id = $1 AND status = 'published'`,
+      [articleId]
+    ),
+  ]);
+  return {
+    translations: translations.rows,
+    categorySlug: meta?.category_slug || null,
+    districtSlug: meta?.district_slug || null,
+  };
+}
 
 const translationFields = {
   headline: z.string().trim().min(5).max(300),
@@ -226,6 +255,14 @@ const createArticle = asyncHandler(async (req, res) => {
       ]
     );
     await attachImages(client, id, user.id, user, data.main_image_id, data.image_ids);
+    if (isStaff(user) && data.is_sponsored) {
+      const protectedIds = [
+        data.main_image_id,
+        ...(data.image_ids || []),
+        ...extractInlineImageIds(data.content),
+      ];
+      await markImagesAdProtected(client, protectedIds, true);
+    }
     await replaceTags(client, id, data.tags);
 
     if (data.submit) {
@@ -325,7 +362,7 @@ const updateArticle = asyncHandler(async (req, res) => {
   const data = updateSchema.parse(req.body);
   const user = req.user;
   const existing = await one(
-    'SELECT id, author_id, status, district_id, taluk_id FROM articles WHERE id = $1',
+    'SELECT id, author_id, status, district_id, taluk_id, is_sponsored FROM articles WHERE id = $1',
     [req.params.id]
   );
   if (!existing) throw new ApiError(404, 'Article not found', 'NOT_FOUND');
@@ -447,10 +484,34 @@ const updateArticle = asyncHandler(async (req, res) => {
     if (data.main_image_id !== undefined || data.image_ids !== undefined) {
       await attachImages(client, req.params.id, user.id, user, data.main_image_id, data.image_ids);
     }
+    const nextSponsored =
+      data.is_sponsored !== undefined && staff ? Boolean(data.is_sponsored) : Boolean(existing.is_sponsored);
+    if (nextSponsored) {
+      const attachedRows = await client.query(
+        'SELECT image_id FROM article_images WHERE article_id = $1',
+        [req.params.id]
+      );
+      const protectedIds = [
+        ...attachedRows.rows.map((row) => row.image_id),
+        ...extractInlineImageIds(data.content || translation.content),
+      ];
+      await markImagesAdProtected(client, protectedIds, true);
+    }
     if (data.tags) await replaceTags(client, req.params.id, data.tags);
     await syncArticleStatus(client, req.params.id);
     await audit(client, user.id, 'article.updated', 'article', req.params.id, { language: lang });
   });
+
+  if (existing.status === 'published' || translation.status === 'published') {
+    void loadPurgeContext(req.params.id)
+      .then((ctx) => {
+        if (translation.status === 'published') {
+          ctx.translations.push({ language: translation.language, slug: translation.slug });
+        }
+        return purgeArticle(ctx);
+      })
+      .catch(() => {});
+  }
 
   res.json({ article: await getArticleForEditor(req.params.id) });
 });
@@ -579,6 +640,7 @@ const publishArticle = asyncHandler(async (req, res) => {
     await syncArticleStatus(client, req.params.id);
     await audit(client, req.user.id, 'article.published', 'article', req.params.id, { language: lang });
   });
+  void loadPurgeContext(req.params.id).then(purgeArticle).catch(() => {});
   res.json({ article: await getArticleForEditor(req.params.id) });
 });
 
@@ -613,6 +675,9 @@ const addTranslation = asyncHandler(async (req, res) => {
         data.seo_description || null,
       ]
     );
+    if (article.is_sponsored) {
+      await markImagesAdProtected(client, extractInlineImageIds(data.content), true);
+    }
     if (data.tags?.length) await replaceTags(client, req.params.id, data.tags);
     await syncArticleStatus(client, req.params.id);
     await audit(client, req.user.id, 'article.translation_added', 'article', req.params.id, {
@@ -695,6 +760,9 @@ const applyRevision = asyncHandler(async (req, res) => {
       revisionId: req.params.revisionId,
     });
   });
+  if (translation.status === 'published') {
+    void loadPurgeContext(req.params.id).then(purgeArticle).catch(() => {});
+  }
   res.json({ article: await getArticleForEditor(req.params.id) });
 });
 
@@ -717,18 +785,38 @@ const archiveArticle = asyncHandler(async (req, res) => {
     );
     await audit(client, req.user.id, 'article.archived', 'article', req.params.id);
   });
+  if (article.status === 'published') {
+    void loadPurgeContext(req.params.id).then(purgeArticle).catch(() => {});
+  }
   res.json({ ok: true });
 });
 
 const deleteArticle = asyncHandler(async (req, res) => {
   const article = await one('SELECT id, status FROM articles WHERE id = $1', [req.params.id]);
   if (!article) throw new ApiError(404, 'Article not found', 'NOT_FOUND');
+  const purgeCtx = article.status === 'published' ? await loadPurgeContext(req.params.id) : null;
+  const [attached, transRows] = await Promise.all([
+    query('SELECT image_id FROM article_images WHERE article_id = $1', [req.params.id]),
+    query('SELECT content FROM article_translations WHERE article_id = $1', [req.params.id]),
+  ]);
+  const candidateImageIds = [
+    ...new Set([
+      ...attached.rows.map((row) => row.image_id),
+      ...transRows.rows.flatMap((row) => extractInlineImageIds(row.content)),
+    ].filter(Boolean)),
+  ];
+
   await tx(async (client) => {
     await client.query('DELETE FROM articles WHERE id = $1', [req.params.id]);
     await audit(client, req.user.id, 'article.deleted', 'article', req.params.id, {
       status: article.status,
     });
   });
+
+  for (const imageId of candidateImageIds) {
+    await deleteImageIfUnreferenced({ query }, imageId);
+  }
+  if (purgeCtx) void purgeArticle(purgeCtx);
   res.json({ ok: true, deleted: true });
 });
 

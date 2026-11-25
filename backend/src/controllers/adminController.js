@@ -4,8 +4,15 @@ const { query, one, tx } = require('../db');
 const { asyncHandler, ApiError } = require('../utils/errors');
 const { cleanText } = require('../utils/sanitize');
 const { audit } = require('../utils/audit');
-const { imageUrl } = require('../services/imageService');
+const { imageUrl, deleteImageIfUnreferenced, markImagesAdProtected } = require('../services/imageService');
 const { slugify, uniqueSlug } = require('../utils/slug');
+const { purgeTaxonomy, purgeAds, purgeArticleComments } = require('../services/cloudflareCache');
+const {
+  getStorageStats,
+  updateFlushSettings,
+  flushCloudflareStorage,
+  VALID_MODES,
+} = require('../services/storageFlushService');
 
 const dashboard = asyncHandler(async (req, res) => {
   const [counts, topArticles, pending, activity, revenue] = await Promise.all([
@@ -260,6 +267,7 @@ const createCategory = asyncHandler(async (req, res) => {
     [cleanText(data.name_en, 100), cleanText(data.name_kn, 100), slug, data.sort_order]
   );
   await audit(null, req.user.id, 'admin.category_created', 'category', rows[0].id);
+  void purgeTaxonomy();
   res.status(201).json({ category: rows[0] });
 });
 
@@ -283,6 +291,7 @@ const updateCategory = asyncHandler(async (req, res) => {
     ]
   );
   await audit(null, req.user.id, 'admin.category_updated', 'category', req.params.id);
+  void purgeTaxonomy();
   res.json({ category: rows[0] });
 });
 
@@ -307,6 +316,7 @@ const createDistrict = asyncHandler(async (req, res) => {
     [cleanText(data.name_en, 100), cleanText(data.name_kn, 100), slug]
   );
   await audit(null, req.user.id, 'admin.district_created', 'district', rows[0].id);
+  void purgeTaxonomy();
   res.status(201).json({ district: rows[0] });
 });
 
@@ -329,6 +339,7 @@ const updateDistrict = asyncHandler(async (req, res) => {
     ]
   );
   await audit(null, req.user.id, 'admin.district_updated', 'district', req.params.id);
+  void purgeTaxonomy();
   res.json({ district: rows[0] });
 });
 
@@ -369,6 +380,7 @@ const moderateComment = asyncHandler(async (req, res) => {
   );
   if (!updated.rowCount) throw new ApiError(404, 'Comment not found', 'NOT_FOUND');
   await audit(null, req.user.id, 'admin.comment_moderated', 'comment', req.params.id, { status });
+  void purgeArticleComments(updated.rows[0].article_id);
   res.json({ ok: true });
 });
 
@@ -577,9 +589,13 @@ const createAd = asyncHandler(async (req, res) => {
       ]
     );
     await insertOverrides(client, rows[0].id, data.overrides);
+    if (data.image_id) {
+      await markImagesAdProtected(client, [data.image_id], true);
+    }
     return rows[0];
   });
   await audit(null, req.user.id, 'admin.ad_created', 'advertisement', advertisement.id);
+  void purgeAds();
   res.status(201).json({ advertisement });
 });
 
@@ -644,16 +660,33 @@ const updateAd = asyncHandler(async (req, res) => {
       await client.query('DELETE FROM advertisement_overrides WHERE advertisement_id = $1', [req.params.id]);
       await insertOverrides(client, req.params.id, data.overrides);
     }
+    if (merged.image_id) {
+      await markImagesAdProtected(client, [merged.image_id], true);
+    }
     return rows[0];
   });
+  if (existing.image_id && existing.image_id !== merged.image_id) {
+    await deleteImageIfUnreferenced({ query }, existing.image_id);
+  }
   await audit(null, req.user.id, 'admin.ad_updated', 'advertisement', req.params.id);
+  void purgeAds();
   res.json({ advertisement });
 });
 
 const deleteAd = asyncHandler(async (req, res) => {
+  const existing = await one('SELECT id, image_id FROM advertisements WHERE id = $1', [req.params.id]);
+  if (!existing) throw new ApiError(404, 'Advertisement not found', 'NOT_FOUND');
   await query('DELETE FROM advertisements WHERE id = $1', [req.params.id]);
-  await audit(null, req.user.id, 'admin.ad_deleted', 'advertisement', req.params.id);
-  res.json({ ok: true });
+  let imageDeleted = false;
+  if (existing.image_id) {
+    imageDeleted = await deleteImageIfUnreferenced({ query }, existing.image_id);
+  }
+  await audit(null, req.user.id, 'admin.ad_deleted', 'advertisement', req.params.id, {
+    imageId: existing.image_id || null,
+    imageDeleted,
+  });
+  void purgeAds();
+  res.json({ ok: true, imageDeleted });
 });
 
 const analytics = asyncHandler(async (req, res) => {
@@ -714,6 +747,37 @@ const auditLogs = asyncHandler(async (req, res) => {
   res.json({ items: rows });
 });
 
+const storageStats = asyncHandler(async (req, res) => {
+  const stats = await getStorageStats({ query });
+  res.json(stats);
+});
+
+const updateStorageSettings = asyncHandler(async (req, res) => {
+  const schema = z.object({
+    autoMonthly: z.boolean().optional(),
+    retentionDays: z.coerce.number().int().min(1).max(365).optional(),
+  });
+  const data = schema.parse(req.body || {});
+  const settings = await updateFlushSettings(data, { query });
+  await audit(null, req.user.id, 'admin.storage_settings_updated', 'storage', 'cloudflare', settings);
+  res.json({ settings });
+});
+
+const flushStorage = asyncHandler(async (req, res) => {
+  const schema = z.object({
+    mode: z.enum(VALID_MODES).default('older_than_30d'),
+    retentionDays: z.coerce.number().int().min(1).max(365).optional(),
+  });
+  const data = schema.parse(req.body || {});
+  const result = await flushCloudflareStorage({
+    mode: data.mode,
+    retentionDays: data.retentionDays,
+    actorId: req.user.id,
+    trigger: 'manual',
+  });
+  res.json({ result });
+});
+
 module.exports = {
   dashboard,
   pendingArticles,
@@ -739,4 +803,7 @@ module.exports = {
   deleteAd,
   analytics,
   auditLogs,
+  storageStats,
+  updateStorageSettings,
+  flushStorage,
 };

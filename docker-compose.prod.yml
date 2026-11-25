@@ -1,0 +1,88 @@
+# Isolated VPS production stack for tajasuddinews.in
+# Uses explicit compose project name, isolated bridge network, dedicated volume,
+# memory caps, zero host port bindings, and Cloudflare Tunnel ingress so existing
+# VPS containers and ports are never affected.
+name: tajasuddinews
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tajasuddinews_db
+    restart: unless-stopped
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=384MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - max_connections=40
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-news}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in shell or .env}
+      POSTGRES_DB: ${POSTGRES_DB:-karnataka_news}
+    volumes:
+      - tajasuddinews_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-news} -d ${POSTGRES_DB:-karnataka_news}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - tajasuddinews_net
+
+  app:
+    build:
+      context: .
+      args:
+        VITE_MEDIA_BASE_URL: ${VITE_MEDIA_BASE_URL:-https://media.tajasuddinews.in}
+    container_name: tajasuddinews_app
+    restart: unless-stopped
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+    # Zero host ports exposed; Cloudflare Tunnel connects directly inside tajasuddinews_net.
+    networks:
+      - tajasuddinews_net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tajasuddinews_tunnel
+    restart: unless-stopped
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
+    networks:
+      - tajasuddinews_net
+
+volumes:
+  tajasuddinews_pgdata:
+
+networks:
+  tajasuddinews_net:
+    name: tajasuddinews_net
+    driver: bridge

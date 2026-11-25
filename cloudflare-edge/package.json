@@ -1,0 +1,10 @@
+{
+  "name": "thaja-suddi-edge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scoped Cloudflare Edge Worker + SQLite Durable Object buffer for Thaja Suddi views and ad impressions",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

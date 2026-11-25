@@ -6,6 +6,22 @@ const { renderArticlePage, renderNotFound, baseUrl } = require('../services/ssr'
 
 const LANGS = ['kn', 'en'];
 
+const ARTICLE_AD_PLACEMENTS = [
+  'article_top',
+  'home_top',
+  'category',
+  'article_mid',
+  'article_inline_second',
+  'article_before_comments',
+  'article_bottom',
+  'article_sidebar',
+  'home_mid',
+  'article_sidebar_bottom',
+  'global_top',
+  'global_bottom',
+  'footer',
+];
+
 function placementAds(ads, placements, excludeIds = new Set()) {
   for (const placement of placements) {
     const matches = ads.filter((ad) => ad.placement === placement && !excludeIds.has(ad.id));
@@ -35,56 +51,33 @@ const articlePage = asyncHandler(async (req, res) => {
     districtSlug: article.district_slug,
     path: req.path,
   };
-  const [
-    latest,
-    trending,
-    breakingArticles,
-    topAds,
-    midAds,
-    inlineSecondAds,
-    beforeCommentsAds,
-    bottomAds,
-    sideAds,
-    sideBottomAds,
-    globalTopAds,
-    globalBottomAds,
-    footerAds,
-  ] = await Promise.all([
+  const [latest, trending, breakingArticles, allAds] = await Promise.all([
     listCards({ lang, limit: 6 }),
     listCards({ lang, limit: 6, sort: 'trending' }),
     listCards({ lang, limit: 8, breaking: true }),
-    activeAds(['article_top', 'home_top', 'category'], scope),
-    activeAds(['article_mid'], scope),
-    activeAds(['article_inline_second'], scope),
-    activeAds(['article_before_comments'], scope),
-    activeAds(['article_bottom'], scope),
-    activeAds(['article_sidebar', 'home_mid'], scope),
-    activeAds(['article_sidebar_bottom'], scope),
-    activeAds(['global_top'], scope),
-    activeAds(['global_bottom'], scope),
-    activeAds(['footer'], scope),
+    activeAds(ARTICLE_AD_PLACEMENTS, scope),
   ]);
 
-  const topAdList = placementAds(topAds, ['article_top', 'home_top', 'category']);
+  const topAdList = placementAds(allAds, ['article_top', 'home_top', 'category']);
   const usedIds = new Set(topAdList.map((ad) => ad.id));
-  const sideAdList = placementAds(sideAds, ['article_sidebar', 'home_mid'], usedIds);
+  const sideAdList = placementAds(allAds, ['article_sidebar', 'home_mid'], usedIds);
   sideAdList.forEach((ad) => usedIds.add(ad.id));
-  const midAdList = placementAds(midAds, ['article_mid'], usedIds);
+  const midAdList = placementAds(allAds, ['article_mid'], usedIds);
   midAdList.forEach((ad) => usedIds.add(ad.id));
-  const inlineSecondAdList = placementAds(inlineSecondAds, ['article_inline_second'], usedIds);
+  const inlineSecondAdList = placementAds(allAds, ['article_inline_second'], usedIds);
   inlineSecondAdList.forEach((ad) => usedIds.add(ad.id));
-  const beforeCommentsAdList = placementAds(beforeCommentsAds, ['article_before_comments'], usedIds);
+  const beforeCommentsAdList = placementAds(allAds, ['article_before_comments'], usedIds);
   beforeCommentsAdList.forEach((ad) => usedIds.add(ad.id));
-  const bottomAdList = placementAds(bottomAds, ['article_bottom'], usedIds);
+  const bottomAdList = placementAds(allAds, ['article_bottom'], usedIds);
   bottomAdList.forEach((ad) => usedIds.add(ad.id));
-  const sideBottomAdList = placementAds(sideBottomAds, ['article_sidebar_bottom'], usedIds);
+  const sideBottomAdList = placementAds(allAds, ['article_sidebar_bottom'], usedIds);
   sideBottomAdList.forEach((ad) => usedIds.add(ad.id));
-  const footerAdList = placementAds(footerAds, ['footer'], usedIds);
-  const globalTopAdList = placementAds(globalTopAds, ['global_top']);
-  const globalBottomAdList = placementAds(globalBottomAds, ['global_bottom']);
+  const footerAdList = placementAds(allAds, ['footer'], usedIds);
+  const globalTopAdList = placementAds(allAds, ['global_top']);
+  const globalBottomAdList = placementAds(allAds, ['global_bottom']);
 
   res
-    .set('Cache-Control', 'public, max-age=60, s-maxage=300')
+    .set('Cache-Control', 'public, max-age=60, s-maxage=600')
     .type('html')
     .send(
       renderArticlePage(article, {

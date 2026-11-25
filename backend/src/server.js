@@ -1,6 +1,7 @@
 const app = require('./app');
 const env = require('./config/env');
 const { pool } = require('./db');
+const { startMonthlyFlushScheduler } = require('./services/storageFlushService');
 
 async function start() {
   try {
@@ -14,6 +15,7 @@ async function start() {
   const server = app.listen(env.port, () => {
     console.log(`[server] Thaja Suddi running at http://localhost:${env.port}`);
     console.log(`[server] environment: ${env.nodeEnv}`);
+    startMonthlyFlushScheduler();
   });
 
   const shutdown = async (signal) => {

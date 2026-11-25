@@ -50,40 +50,113 @@ UPLOAD_MAX_BYTES=8388608
 
 `PUBLIC_BASE_URL` is used for canonical URLs, sitemap entries, and share links.
 
-## Cloudflare
+## Cloudflare (Free Plan + Low-Load VPS Offload)
 
-The Express server ships edge caching headers for Cloudflare and works unchanged behind its proxy. To put Cloudflare in front of the site:
+The application is designed to run on a lightweight VPS with **zero Redis on the VPS** and **zero image binary storage or serving load on PostgreSQL/Express**:
 
-1. Add the domain to Cloudflare and point the DNS record at the server (orange cloud enabled). If a load balancer or nginx sits between Cloudflare and Express, set `TRUST_PROXY` to the number of proxy hops (`1` for Cloudflare only).
-2. Set SSL/TLS mode to **Full (strict)** and use a valid origin certificate.
-3. Set `PUBLIC_BASE_URL=https://your-domain` and `CORS_ORIGINS=https://your-domain` (plus `https://www.your-domain` if used).
-4. Enable Brotli, HTTP/3 and Early Hints in **Speed → Optimization**.
+- **Images → Cloudflare R2 + Custom Domain:** Uploads are validated and converted to WebP once on upload, then stored in Cloudflare R2 and served directly from `https://media.tajasuddinews.in` with immutable 1-year edge caching and \$0 egress. Advertisement creatives and sponsored post images (`is_ad_protected = TRUE`) are kept separate from regular news images so Super Admin monthly storage flushes never touch paid ads, while deleting an ad or sponsored post in the app deletes its assets from both PostgreSQL and Cloudflare R2.
+- **Read Caching → Cloudflare Edge Cache + Auto-Purge API:** Public feeds, SSR articles, approved comments, categories, and districts cache at the Cloudflare edge and automatically purge when editors publish, update, archive, moderate comments, or change ads/taxonomy.
+- **High-Frequency Analytics → Scoped Edge Worker + SQLite Durable Object (`cloudflare-edge/`):** Only `POST /api/v1/articles/:id/view` and `POST /api/v1/public/ads/:id/impression` run through the Worker, deduplicating 30-minute views in edge SQLite and flushing batched deltas to the VPS every 60 seconds.
 
-The server emits `CDN-Cache-Control` (Cloudflare-only edge TTL) so browser caching stays conservative:
+### 1. Cloudflare R2 bucket & custom media domain
 
-| Path | Edge TTL |
-| --- | --- |
-| `/assets/*`, `/api/v1/images/*` | 1 year, immutable |
-| `/:lang/news/:slug` (SSR article) | 5 minutes |
-| `/api/v1/public/*` | 60 seconds (ticker 15 seconds) |
-| `/sitemap.xml`, `/robots.txt` | 10 and 60 minutes |
-| `/api/v1/auth/*`, `/api/v1/admin/*`, `/dashboard/*` | bypass |
-| `/api/v1/public/ads/*` (click/impression tracking) | bypass |
-| SPA shell (`/`, `/latest`, …) | bypass (`no-store` on the index file) |
+1. In Cloudflare Dashboard → **R2 Object Storage**, create a bucket (e.g., `tajasuddinews-media`).
+2. In the bucket **Settings → Public Access → Custom Domains**, connect `media.tajasuddinews.in` (same Cloudflare zone).
+3. Create an **R2 API Token** scoped to **Object Read & Write** for that bucket only, and note your **Account ID**, **Access Key ID**, and **Secret Access Key**.
+4. Set in `backend/.env`:
+   ```env
+   IMAGE_STORAGE=r2
+   R2_ACCOUNT_ID=<account-id>
+   R2_ACCESS_KEY_ID=<access-key>
+   R2_SECRET_ACCESS_KEY=<secret-key>
+   R2_BUCKET_NAME=tajasuddinews-media
+   R2_PUBLIC_BASE_URL=https://media.tajasuddinews.in
+   ```
+   Build the frontend with `VITE_MEDIA_BASE_URL=https://media.tajasuddinews.in` so uploader previews and rich editor inserts use the media subdomain directly.
+5. If you already have images stored in PostgreSQL `BYTEA`, backfill them to R2 and reclaim DB disk space:
+   ```bash
+   npm run migrate
+   npm run images:migrate-r2 -- --rewrite-html
+   # Then inside PostgreSQL: VACUUM FULL images;
+   ```
 
-Cloudflare caches hashed assets and image responses by extension with no extra rules. To also cache SSR pages and public API JSON, open **Caching → Cache Rules → Create rule** and add these rules in order (first match wins):
+### 2. Cloudflare Cache Rules & Tiered Cache (Free Plan)
+
+1. Turn on **Caching → Tiered Cache → Smart Tiered Caching** (included on the Free plan) and enable **Brotli**, **HTTP/3**, and **Early Hints** under **Speed → Optimization**.
+2. Set SSL/TLS mode to **Full (strict)**.
+3. In **Caching → Cache Rules → Create rule**, add these rules in order (first match wins):
 
 | # | Rule name | When incoming requests match | Action |
 | --- | --- | --- | --- |
-| 1 | Bypass private areas | `starts_with(http.request.uri.path, "/api/v1/auth/") or starts_with(http.request.uri.path, "/api/v1/admin/") or starts_with(http.request.uri.path, "/dashboard/")` | Bypass cache |
-| 2 | Bypass ad tracking | `starts_with(http.request.uri.path, "/api/v1/public/ads/")` | Bypass cache |
-| 3 | Cache article pages | `starts_with(http.request.uri.path, "/en/news/") or starts_with(http.request.uri.path, "/kn/news/")` | Eligible for cache; Edge TTL **Use origin cache control headers** |
-| 4 | Cache public API | `starts_with(http.request.uri.path, "/api/v1/public/")` | Eligible for cache; Edge TTL **Use origin cache control headers** |
-| 5 | Cache static and images | `starts_with(http.request.uri.path, "/assets/") or starts_with(http.request.uri.path, "/api/v1/images/")` | Eligible for cache; Edge TTL **Use origin cache control headers** |
+| 1 | Cache R2 media domain | `http.host eq "media.tajasuddinews.in"` | Eligible for cache; Edge TTL **1 year** |
+| 2 | Bypass private areas | `starts_with(http.request.uri.path, "/api/v1/auth/") or starts_with(http.request.uri.path, "/api/v1/admin/") or starts_with(http.request.uri.path, "/api/v1/internal/") or starts_with(http.request.uri.path, "/dashboard")` | Bypass cache |
+| 3 | Bypass ad click & impression tracking | `starts_with(http.request.uri.path, "/api/v1/public/ads/")` | Bypass cache |
+| 4 | Cache article pages | `starts_with(http.request.uri.path, "/en/news/") or starts_with(http.request.uri.path, "/kn/news/")` | Eligible for cache; Edge TTL **Use origin cache control headers** |
+| 5 | Cache public API & approved comments | `starts_with(http.request.uri.path, "/api/v1/public/") or (http.request.uri.path contains "/comments" and http.request.method eq "GET")` | Eligible for cache; Edge TTL **Use origin cache control headers** |
+| 6 | Cache static and legacy image redirects | `starts_with(http.request.uri.path, "/assets/") or starts_with(http.request.uri.path, "/static/") or starts_with(http.request.uri.path, "/api/v1/images/")` | Eligible for cache; Edge TTL **Use origin cache control headers** |
 
-"Use origin cache control headers" makes Cloudflare read the `CDN-Cache-Control` values above (5 minutes for articles, 60 seconds for public API, 15 seconds for the ticker, 1 year for images). If a catch-all "Cache Everything" rule already exists, place rules 1 and 2 above it.
+Origin `CDN-Cache-Control` headers emitted by [cdnCache.js](file:///d:/New_app/backend/src/middleware/cdnCache.js):
 
-After a deployment, purge `/` and `/index.html`; hashed files under `/assets/` never need purging. Origin rate limiting and login cookies rely on `TRUST_PROXY` being correct so Cloudflare client IPs are not shared.
+| Path | Edge TTL (`CDN-Cache-Control`) |
+| --- | --- |
+| `/assets/*`, `/api/v1/images/*` | 1 year, immutable |
+| `/api/v1/public/categories`, `/districts`, `/taluks` | 1 hour (`stale-while-revalidate=3600`, `stale-if-error=86400`) |
+| `/:lang/news/:slug` (SSR article) | 10 minutes (`stale-while-revalidate=1800`, `stale-if-error=86400`) |
+| `/api/v1/public/*` (home, latest, trending, search, ads) | 5 minutes (`stale-while-revalidate=600`, `stale-if-error=86400`) |
+| `GET /api/v1/articles/:id/comments` | 60 seconds (`stale-while-revalidate=120`, `stale-if-error=3600`) |
+| `/api/v1/public/ticker` | 30 seconds (`stale-while-revalidate=60`, `stale-if-error=3600`) |
+| `/sitemap.xml`, `/robots.txt` | 30 and 60 minutes |
+| `/api/v1/auth/*`, `/api/v1/admin/*`, `/api/v1/internal/*`, `/dashboard/*`, `/api/v1/public/ads/*` | bypass (`no-store`) |
+
+### 3. Cloudflare WAF Rate Limiting Rules (Free Plan)
+
+In **Security → WAF → Rate limiting rules**, add an edge rule before traffic reaches your VPS (Cloudflare Free supports IP-based 10s rate limits):
+- **Auth & comments protection:** `(starts_with(http.request.uri.path, "/api/v1/auth/") or (http.request.uri.path contains "/comments" and http.request.method eq "POST"))` → Block for 10s when requests exceed 15 per 10 seconds per IP.
+
+### 4. Automatic Cache Purge API token
+
+1. In Cloudflare Dashboard → **My Profile → API Tokens → Create Custom Token**, grant **Zone → Cache Purge → Purge** on your domain zone.
+2. Set in `backend/.env`:
+   ```env
+   PUBLIC_BASE_URL=https://tajasuddinews.in
+   CORS_ORIGINS=https://tajasuddinews.in,https://www.tajasuddinews.in
+   CF_ZONE_ID=<your-zone-id>
+   CF_API_TOKEN=<cache-purge-token>
+   CF_CACHE_PURGE_MODE=urls
+   ```
+
+### 5. Deploy the Scoped Edge Worker (`cloudflare-edge/`)
+
+Mount the Worker **only** on the two high-frequency write routes so all public `GET` reads stay on unlimited free CDN cache:
+
+```bash
+# Generate a random flush secret and set it in both backend/.env (INTERNAL_FLUSH_SECRET) and Worker secrets
+cd cloudflare-edge
+# Uncomment routes in cloudflare.config.ts for tajasuddinews.in
+npx cf deploy
+npx wrangler secret put INTERNAL_FLUSH_SECRET --name thaja-suddi-edge
+```
+
+### 6. Run Isolated on VPS with Cloudflare Tunnel (`docker-compose.prod.yml`)
+
+Use `-p tajasuddinews` so the database (`tajasuddinews_db`), app (`tajasuddinews_app`), tunnel (`tajasuddinews_tunnel`), bridge network (`tajasuddinews_net`), and volume (`tajasuddinews_pgdata`) stay isolated from all other containers on the VPS with zero host ports opened.
+
+In **Zero Trust → Networks → Tunnels**, create a tunnel with public hostname `tajasuddinews.in` (and `www.tajasuddinews.in` if used) pointing to service `http://tajasuddinews_app:4000`, set `CLOUDFLARE_TUNNEL_TOKEN` and `POSTGRES_PASSWORD`, and set `DATABASE_URL=postgres://news:<POSTGRES_PASSWORD>@db:5432/karnataka_news` in `backend/.env`:
+
+```bash
+docker compose -p tajasuddinews -f docker-compose.prod.yml up -d --build
+docker compose -p tajasuddinews -f docker-compose.prod.yml exec app npm --workspace backend run migrate
+docker compose -p tajasuddinews -f docker-compose.prod.yml exec app npm --workspace backend run seed
+```
+
+### 7. Super Admin Monthly Cloudflare Storage Flush
+
+Super Admins can manage storage directly under **Dashboard → Admin overview → Cloudflare Storage & Monthly Flush**:
+- **Regular News Media vs. Protected Ads:** Only regular news images (`is_ad_protected = FALSE`) are eligible for monthly flushing; article text and SEO URLs remain intact while deleted inline `<img>` tags are cleaned from old news articles. Banner advertisements (`advertisements.image_id`) and sponsored posts (`articles.is_sponsored = TRUE`) are always protected.
+- **Auto-Flush Monthly Toggle:** Runs a daily check in the background and automatically flushes regular news images older than the configured retention period (default 30 days) once per cycle.
+- **App-Driven Ad Deletion:** Deleting or replacing an advertisement image or permanently deleting a sponsored post from the dashboard immediately deletes the image from both PostgreSQL and Cloudflare R2.
+
+Origin rate limiting and login cookies rely on `TRUST_PROXY=1` so Cloudflare `X-Forwarded-For` client IPs are preserved. After each release, purge `/` and `/index.html`; hashed files under `/assets/` never need purging.
 
 ## Demo accounts
 

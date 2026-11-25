@@ -1,4 +1,5 @@
 const BASE = '/api/v1';
+const MEDIA_BASE = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/$/, '');
 const TOKEN_KEY = 'kv_token';
 const SESSION_KEY = 'kv_session';
 const VISITOR_KEY = 'kv_visitor';
@@ -144,15 +145,19 @@ export const api = {
   post: (path, body, options = {}) => request(path, { ...options, method: 'POST', body }),
   put: (path, body, options = {}) => request(path, { ...options, method: 'PUT', body }),
   del: (path, options = {}) => request(path, { ...options, method: 'DELETE' }),
-  upload: (path, file) => {
+  upload: (path, file, options = {}) => {
     const form = new FormData();
     form.append('image', file);
-    return request(path, { method: 'POST', form });
+    const query = options.scope ? `?scope=${encodeURIComponent(options.scope)}` : '';
+    return request(`${path}${query}`, { method: 'POST', form });
   },
   refresh: refreshSession,
 };
 
 export function thumbnailUrl(imageId, variant = 'thumb') {
   if (!imageId) return null;
+  if (MEDIA_BASE && (variant === 'thumb' || variant === 'optimized')) {
+    return `${MEDIA_BASE}/images/${imageId}/${variant}.webp`;
+  }
   return `${BASE}/images/${imageId}?variant=${variant}`;
 }

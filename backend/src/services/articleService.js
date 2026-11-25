@@ -101,6 +101,30 @@ async function listCards({
   return rows.map((row) => serializeCard(row, lang));
 }
 
+async function listCategorySectionCards({ lang = 'en', categorySlugs = [], perCategory = 4 }) {
+  const slugs = (categorySlugs || []).filter(Boolean);
+  const grouped = new Map();
+  if (!slugs.length) return grouped;
+  const limitPerCategory = Math.min(Math.max(Number(perCategory) || 4, 1), 20);
+  const { rows } = await query(
+    `WITH ranked AS (
+       SELECT ${CARD_COLUMNS},
+              ROW_NUMBER() OVER (PARTITION BY c.slug ORDER BY t.published_at DESC) AS rn
+         FROM articles a ${CARD_JOINS}
+        WHERE a.status <> 'archived'
+          AND c.slug = ANY($2::text[])
+     )
+     SELECT * FROM ranked WHERE rn <= $3 ORDER BY category_slug, rn`,
+    [lang, slugs, limitPerCategory]
+  );
+  for (const row of rows) {
+    const list = grouped.get(row.category_slug) || [];
+    list.push(serializeCard(row, lang));
+    grouped.set(row.category_slug, list);
+  }
+  return grouped;
+}
+
 async function countCards({ lang = 'en', categorySlug, districtSlug, q }) {
   const params = [lang];
   const where = ["a.status <> 'archived'"];
@@ -280,6 +304,7 @@ async function getPublicDistricts(lang = 'en') {
 
 module.exports = {
   listCards,
+  listCategorySectionCards,
   countCards,
   getPublicArticleBySlug,
   getArticleForEditor,

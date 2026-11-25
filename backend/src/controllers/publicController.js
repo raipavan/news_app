@@ -2,6 +2,7 @@ const { query } = require('../db');
 const { asyncHandler, ApiError } = require('../utils/errors');
 const {
   listCards,
+  listCategorySectionCards,
   countCards,
   getPublicArticleBySlug,
   getPublicCategories,
@@ -39,11 +40,15 @@ const home = asyncHandler(async (req, res) => {
   ]);
 
   const featuredFill = featured.length >= 3 ? featured : latest.slice(0, 5);
-  const categorySections = [];
-  for (const category of categories.slice(0, 8)) {
-    const items = await listCards({ lang, limit: 4, categorySlug: category.slug });
-    if (items.length) categorySections.push({ category, items });
-  }
+  const topCategories = categories.slice(0, 8);
+  const groupedSections = await listCategorySectionCards({
+    lang,
+    categorySlugs: topCategories.map((c) => c.slug),
+    perCategory: 4,
+  });
+  const categorySections = topCategories
+    .map((category) => ({ category, items: groupedSections.get(category.slug) || [] }))
+    .filter((section) => section.items.length > 0);
 
   res.json({
     lang,

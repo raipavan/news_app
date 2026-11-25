@@ -47,5 +47,8 @@ router.put('/advertisements/:id', superAdminOnly, ctrl.updateAd);
 router.delete('/advertisements/:id', superAdminOnly, ctrl.deleteAd);
 
 router.get('/audit-logs', superAdminOnly, ctrl.auditLogs);
+router.get('/storage', superAdminOnly, ctrl.storageStats);
+router.put('/storage/settings', superAdminOnly, ctrl.updateStorageSettings);
+router.post('/storage/flush', superAdminOnly, ctrl.flushStorage);
 
 module.exports = router;

@@ -1,22 +1,27 @@
 const { query, tx } = require('../db');
+const env = require('../config/env');
 const { asyncHandler, ApiError } = require('../utils/errors');
 const { storeImage, resolveImage, imageUrl, deleteImage } = require('../services/imageService');
+const { publicUrlForKey } = require('../services/r2Storage');
 const { isStaff } = require('../utils/permissions');
 const { audit } = require('../utils/audit');
 
 const upload = asyncHandler(async (req, res) => {
   if (!req.file) throw new ApiError(422, 'Attach an image file', 'NO_FILE');
+  const isAdProtected = req.query.scope === 'ad' || req.body?.scope === 'ad';
   const stored = await tx((client) =>
     storeImage({
       buffer: req.file.buffer,
       filename: req.file.originalname,
       uploadedBy: req.user.id,
+      isAdProtected,
       db: client,
     })
   );
   await audit(null, req.user.id, 'image.uploaded', 'image', stored.id, {
     filename: req.file.originalname,
     bytes: req.file.size,
+    isAdProtected,
   });
   res.status(201).json({ image: stored });
 });
@@ -27,6 +32,20 @@ const serve = asyncHandler(async (req, res) => {
     : 'original';
   const image = await resolveImage({ query }, req.params.id, variant);
   if (!image) throw new ApiError(404, 'Image not found', 'NOT_FOUND');
+
+  if (image.storage_provider === 'r2' && image.storage_key && env.r2.publicBaseUrl) {
+    const targetUrl = publicUrlForKey(image.storage_key);
+    if (targetUrl) {
+      res.set({
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'CDN-Cache-Control': 'public, max-age=31536000, immutable',
+      });
+      return res.redirect(301, targetUrl);
+    }
+  }
+
+  if (!image.binary_data) throw new ApiError(404, 'Image binary not available', 'NOT_FOUND');
+
   const etag = `"${image.id}-${image.variant}-${image.file_size}"`;
   if (req.headers['if-none-match'] === etag) {
     return res.status(304).end();
@@ -67,7 +86,8 @@ const remove = asyncHandler(async (req, res) => {
 
 const articleImages = asyncHandler(async (req, res) => {
   const { rows } = await query(
-    `SELECT i.id, i.width, i.height, i.original_filename, ai.image_type, ai.position, ai.caption
+    `SELECT i.id, i.width, i.height, i.original_filename, i.storage_key,
+            ai.image_type, ai.position, ai.caption
        FROM article_images ai JOIN images i ON i.id = ai.image_id
       WHERE ai.article_id = $1 ORDER BY ai.image_type DESC, ai.position`,
     [req.params.id]
@@ -75,7 +95,7 @@ const articleImages = asyncHandler(async (req, res) => {
   res.json({
     items: rows.map((row) => ({
       ...row,
-      url: imageUrl(row.id, 'original'),
+      url: imageUrl(row.id, 'original', row.storage_key),
       thumb: imageUrl(row.id, 'thumb'),
       optimized: imageUrl(row.id, 'optimized'),
     })),

@@ -48,8 +48,11 @@ function escapeAttr(value) {
   })[char]);
 }
 
-function figureMarkup(imageId) {
-  const src = thumbnailUrl(imageId, 'optimized');
+function figureMarkup(imageOrId) {
+  const src =
+    typeof imageOrId === 'string'
+      ? thumbnailUrl(imageOrId, 'optimized')
+      : imageOrId?.optimized_url || imageOrId?.url || thumbnailUrl(imageOrId?.id, 'optimized');
   return `<figure style="width:100%;margin:0 0 18px"><img src="${escapeAttr(src)}" alt=""></figure>`;
 }
 
@@ -166,20 +169,20 @@ export default function RichEditor({
     if (!valid.length) return;
 
     setBusy(true);
-    const ids = [];
+    const uploaded = [];
     for (const file of valid) {
       try {
         const res = await api.upload('/images', file);
-        ids.push(res.image.id);
+        uploaded.push(res.image);
       } catch (err) {
         notify(`${file.name}: ${err.message}`, 'error');
       }
     }
     setBusy(false);
-    if (!ids.length) return;
-    insertHtml(`${ids.map((id) => figureMarkup(id)).join('')}<p><br></p>`);
+    if (!uploaded.length) return;
+    insertHtml(`${uploaded.map((img) => figureMarkup(img)).join('')}<p><br></p>`);
     notify(
-      ids.length > 1 ? `Placed ${ids.length} photos in the story` : 'Photo placed in the story',
+      uploaded.length > 1 ? `Placed ${uploaded.length} photos in the story` : 'Photo placed in the story',
       'success'
     );
   };
@@ -345,7 +348,7 @@ export default function RichEditor({
   };
 
   const insertFromLibrary = (item) => {
-    insertHtml(`${figureMarkup(item.id)}<p><br></p>`);
+    insertHtml(`${figureMarkup(item)}<p><br></p>`);
     setShowLibrary(false);
     notify('Photo placed in the story', 'success');
   };

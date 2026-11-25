@@ -8,9 +8,12 @@
     "dev": "node --watch src/server.js",
     "migrate": "node src/db/migrate.js",
     "seed": "node src/db/seed.js",
-    "admin:create": "node src/db/createAdmin.js"
+    "admin:create": "node src/db/createAdmin.js",
+    "images:migrate-r2": "node src/db/migrateImagesToR2.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1175.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

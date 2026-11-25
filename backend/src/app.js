@@ -17,6 +17,7 @@ const imageRoutes = require('./routes/imageRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const engagementRoutes = require('./routes/engagementRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const internalRoutes = require('./routes/internalRoutes');
 const ssrController = require('./controllers/ssrController');
 const cloudflareCache = require('./middleware/cdnCache');
 
@@ -73,6 +74,7 @@ const commentLimiter = rateLimit({
   message: { message: 'You are commenting too quickly. Please slow down.', code: 'RATE_LIMITED' },
 });
 
+app.use('/api/v1/internal', internalRoutes);
 app.use('/api/v1/auth', authLimiter);
 app.use('/api/v1/articles/:id/comments', commentLimiter);
 app.use('/api/v1', apiLimiter, writeLimiter);

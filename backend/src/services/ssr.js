@@ -1,5 +1,5 @@
 const env = require('../config/env');
-const { imageUrl } = require('./imageService');
+const { imageUrl, absoluteImageUrl } = require('./imageService');
 
 const LABELS = {
   en: {
@@ -398,7 +398,7 @@ function renderArticlePage(article, {
 }) {
   const labels = LABELS[lang];
   const url = `${base}/${lang}/news/${article.slug}`;
-  const image = article.main_image_id ? `${base}${imageUrl(article.main_image_id, 'optimized')}` : `${base}/static/logo.svg`;
+  const image = article.main_image_id ? absoluteImageUrl(article.main_image_id, 'optimized', base) : `${base}/static/logo.svg`;
   const imageWidth = 1200;
   const imageHeight = 675;
   const title = article.seo_title || article.headline;

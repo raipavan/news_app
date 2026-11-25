@@ -38,6 +38,10 @@ const publicBaseUrl = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNA
   /\/$/,
   ''
 );
+const imageStorage = (process.env.IMAGE_STORAGE || 'pg').toLowerCase() === 'r2' ? 'r2' : 'pg';
+const r2PublicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || '').replace(/\/$/, '');
+const cfZoneId = (process.env.CF_ZONE_ID || '').trim();
+const cfApiToken = (process.env.CF_API_TOKEN || '').trim();
 const defaultCorsOrigins = isProd
   ? []
   : ['http://localhost:5173', 'http://127.0.0.1:5173'];
@@ -48,6 +52,7 @@ const env = {
   databaseUrl:
     process.env.DATABASE_URL ||
     'postgres://news:news@localhost:5434/karnataka_news',
+  dbPoolMax: positiveInt('DB_POOL_MAX', 12),
   accessSecret: process.env.ACCESS_TOKEN_SECRET || DEV_ACCESS_SECRET,
   refreshSecret: process.env.REFRESH_TOKEN_SECRET || DEV_REFRESH_SECRET,
   accessTtl: process.env.ACCESS_TOKEN_TTL || '30m',
@@ -68,6 +73,25 @@ const env = {
   allowDevResetTokens:
     explicitNodeEnv === 'development' &&
     process.env.ALLOW_DEV_RESET_TOKENS !== 'false',
+  r2: {
+    storage: imageStorage,
+    enabled: imageStorage === 'r2',
+    accountId: (process.env.R2_ACCOUNT_ID || '').trim(),
+    accessKeyId: (process.env.R2_ACCESS_KEY_ID || '').trim(),
+    secretAccessKey: (process.env.R2_SECRET_ACCESS_KEY || '').trim(),
+    bucketName: (process.env.R2_BUCKET_NAME || '').trim(),
+    publicBaseUrl: r2PublicBaseUrl,
+  },
+  cloudflare: {
+    zoneId: cfZoneId,
+    apiToken: cfApiToken,
+    purgeEnabled: Boolean(cfZoneId && cfApiToken && publicBaseUrl),
+    purgeMode:
+      (process.env.CF_CACHE_PURGE_MODE || 'urls').toLowerCase() === 'everything'
+        ? 'everything'
+        : 'urls',
+  },
+  internalFlushSecret: (process.env.INTERNAL_FLUSH_SECRET || '').trim(),
 };
 
 function assertProductionConfig() {
@@ -105,6 +129,25 @@ function assertProductionConfig() {
 
   if (!process.env.DATABASE_URL || /news:news@/i.test(env.databaseUrl)) {
     problems.push('DATABASE_URL must be set to a production database connection');
+  }
+
+  if (env.r2.enabled) {
+    if (!env.r2.accountId) problems.push('R2_ACCOUNT_ID is required when IMAGE_STORAGE=r2');
+    if (!env.r2.accessKeyId) problems.push('R2_ACCESS_KEY_ID is required when IMAGE_STORAGE=r2');
+    if (!env.r2.secretAccessKey) problems.push('R2_SECRET_ACCESS_KEY is required when IMAGE_STORAGE=r2');
+    if (!env.r2.bucketName) problems.push('R2_BUCKET_NAME is required when IMAGE_STORAGE=r2');
+    if (!env.r2.publicBaseUrl) {
+      problems.push('R2_PUBLIC_BASE_URL is required when IMAGE_STORAGE=r2');
+    } else {
+      try {
+        const r2Url = new URL(env.r2.publicBaseUrl);
+        if (r2Url.protocol !== 'https:') {
+          problems.push('R2_PUBLIC_BASE_URL must use https');
+        }
+      } catch {
+        problems.push('R2_PUBLIC_BASE_URL must be a valid absolute URL');
+      }
+    }
   }
 
   if (problems.length) {

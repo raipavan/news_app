@@ -809,7 +809,13 @@ export default function Ads() {
               Sponsored / paid placement
             </label>
             <div className="span-2">
-              <ImageUploader value={image} onChange={setImage} label="Creative image" hint="Recommended 1200×300 or larger" />
+              <ImageUploader
+                value={image}
+                onChange={setImage}
+                scope="ad"
+                label="Creative image"
+                hint="Recommended 1200×300 or larger (stored separately from news flush)"
+              />
             </div>
             <div className="span-2">
               <AdSizePreview

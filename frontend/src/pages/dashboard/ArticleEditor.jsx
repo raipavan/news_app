@@ -563,10 +563,15 @@ export default function ArticleEditor() {
                   <ImageUploader
                     value={mainImage}
                     onChange={setMainImage}
+                    scope={flags.is_sponsored ? 'ad' : undefined}
                     label="Main image"
                     hint="JPG, PNG, WebP or GIF · max 8 MB · min 200×150"
                   />
-                  <GalleryUploader items={gallery} onChange={setGallery} />
+                  <GalleryUploader
+                    items={gallery}
+                    onChange={setGallery}
+                    scope={flags.is_sponsored ? 'ad' : undefined}
+                  />
                 </>
               )}
             </div>

@@ -119,6 +119,12 @@
     .then((data) => {
       if (data && typeof data.view_count === 'number') {
         setText('view-count', `${data.view_count.toLocaleString('en-IN')} ${isKn ? 'ವೀಕ್ಷಣೆಗಳು' : 'views'}`);
+      } else if (data && data.buffered && data.counted) {
+        const el = document.getElementById('view-count');
+        const current = el ? parseInt(el.textContent.replace(/[^\d]/g, ''), 10) : NaN;
+        if (Number.isFinite(current)) {
+          setText('view-count', `${(current + 1).toLocaleString('en-IN')} ${isKn ? 'ವೀಕ್ಷಣೆಗಳು' : 'views'}`);
+        }
       }
     })
     .catch(() => {});

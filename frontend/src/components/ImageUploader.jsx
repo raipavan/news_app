@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { api } from '../lib/api';
+import { api, thumbnailUrl } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
@@ -9,10 +9,10 @@ function previewOf(image) {
 }
 
 export function optimizeUrl(id) {
-  return id ? `/api/v1/images/${id}?variant=optimized` : null;
+  return thumbnailUrl(id, 'optimized');
 }
 
-export function ImageUploader({ value, onChange, label = 'Main image', hint }) {
+export function ImageUploader({ value, onChange, label = 'Main image', hint, scope }) {
   const { notify } = useToast();
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +27,7 @@ export function ImageUploader({ value, onChange, label = 'Main image', hint }) {
     }
     setBusy(true);
     try {
-      const res = await api.upload('/images', file);
+      const res = await api.upload('/images', file, { scope });
       onChange({ id: res.image.id, preview: previewOf(res.image) }, res.image);
       notify('Image uploaded', 'success');
     } catch (err) {
@@ -66,7 +66,7 @@ export function ImageUploader({ value, onChange, label = 'Main image', hint }) {
   );
 }
 
-export function GalleryUploader({ items, onChange, max = 8 }) {
+export function GalleryUploader({ items, onChange, max = 8, scope }) {
   const { notify } = useToast();
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -88,7 +88,7 @@ export function GalleryUploader({ items, onChange, max = 8 }) {
         continue;
       }
       try {
-        const res = await api.upload('/images', file);
+        const res = await api.upload('/images', file, { scope });
         next.push({ id: res.image.id, preview: previewOf(res.image) });
       } catch (err) {
         notify(`${file.name}: ${err.message}`, 'error');
