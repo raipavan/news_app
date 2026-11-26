@@ -33,12 +33,16 @@ export default function AdminDashboard() {
   const { notify } = useToast();
   const { data, loading, error } = useApi('/admin/dashboard');
   const storageApi = useApi('/admin/storage');
+  const shareApi = useApi('/admin/share-settings');
   const [autoMonthly, setAutoMonthly] = useState(true);
   const [retentionDays, setRetentionDays] = useState(30);
   const [flushMode, setFlushMode] = useState('older_than_30d');
   const [savingSettings, setSavingSettings] = useState(false);
   const [flushing, setFlushing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('');
+  const [includeSummaryInShare, setIncludeSummaryInShare] = useState(false);
+  const [savingShare, setSavingShare] = useState(false);
   useDocumentTitle('Admin overview');
 
   useEffect(() => {
@@ -47,6 +51,13 @@ export default function AdminDashboard() {
     setAutoMonthly(Boolean(s.autoMonthly));
     setRetentionDays(Number(s.retentionDays) || 30);
   }, [storageApi.data]);
+
+  useEffect(() => {
+    const s = shareApi.data?.settings;
+    if (!s) return;
+    setWhatsappGroupUrl(s.whatsappGroupUrl || '');
+    setIncludeSummaryInShare(Boolean(s.includeSummaryInShare));
+  }, [shareApi.data]);
 
   if (loading && !data) return <PageLoading label="Loading administration" />;
   if (error) return <EmptyState title="Could not load admin metrics" body={error.message} />;
@@ -84,6 +95,23 @@ export default function AdminDashboard() {
       notify(err.message, 'error');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const saveShareSettings = async (event) => {
+    event.preventDefault();
+    setSavingShare(true);
+    try {
+      await api.put('/admin/share-settings', {
+        whatsappGroupUrl: whatsappGroupUrl.trim(),
+        includeSummaryInShare,
+      });
+      notify('WhatsApp share template updated', 'success');
+      shareApi.reload();
+    } catch (err) {
+      notify(err.message, 'error');
+    } finally {
+      setSavingShare(false);
     }
   };
 
@@ -241,6 +269,59 @@ export default function AdminDashboard() {
               </div>
             </>
           )}
+        </div>
+      </section>
+
+      <section className="panel mt-2">
+        <div className="panel-head">
+          <h3>WhatsApp Share Template</h3>
+        </div>
+        <div className="panel-body">
+          <p className="aside-note">
+            Configure the WhatsApp Group or Channel invite link appended when readers or reporters share an article on WhatsApp.
+          </p>
+          <form onSubmit={saveShareSettings} className="form-grid mt-2">
+            <div className="field span-2">
+              <label htmlFor="wa-group-url">WhatsApp Group / Channel Invite URL</label>
+              <input
+                id="wa-group-url"
+                type="url"
+                className="input"
+                placeholder="https://chat.whatsapp.com/..."
+                value={whatsappGroupUrl}
+                onChange={(event) => setWhatsappGroupUrl(event.target.value)}
+              />
+            </div>
+            <label className="check span-2">
+              <input
+                type="checkbox"
+                checked={includeSummaryInShare}
+                onChange={(event) => setIncludeSummaryInShare(event.target.checked)}
+              />
+              <span>Include article summary after headline in WhatsApp message</span>
+            </label>
+            <div className="field span-2">
+              <pre
+                style={{
+                  margin: 0,
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: 'var(--bg-soft, #f7f5f0)',
+                  fontSize: '12px',
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {`🔶 *Sample Headline${includeSummaryInShare ? ' :* Short article summary…' : '*'}\n\nhttps://tajanewssuddi.in/kn/news/sample-story${
+                  whatsappGroupUrl.trim() ? `\n\n🟢 *Join Whatsapp Group:* ${whatsappGroupUrl.trim()}` : ''
+                }`}
+              </pre>
+            </div>
+            <div className="field">
+              <button type="submit" className="btn" disabled={savingShare}>
+                {savingShare ? 'Saving…' : 'Save share template'}
+              </button>
+            </div>
+          </form>
         </div>
       </section>
 

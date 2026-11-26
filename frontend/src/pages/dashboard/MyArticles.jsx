@@ -32,9 +32,26 @@ export default function MyArticles() {
   if (status) query.set('status', status);
   if (onlyMine) query.set('mine', 'true');
   const { data, loading, error, reload } = useApi(`/articles?${query.toString()}`);
+  const shareApi = useApi('/public/share-settings');
   useDocumentTitle('My articles');
 
   const items = data?.items || [];
+  const shareSettings = shareApi.data?.settings || {};
+
+  const buildWhatsappShareHref = (translation) => {
+    const url = `${window.location.origin}/${translation.language}/news/${translation.slug}`;
+    const cleanHeadline = (translation.headline || '').trim();
+    const cleanSummary = (translation.summary || '').trim();
+    const titleLine =
+      shareSettings.includeSummaryInShare && cleanSummary
+        ? `🔶 *${cleanHeadline} :* ${cleanSummary}`
+        : `🔶 *${cleanHeadline}*`;
+    const lines = [titleLine, '', url];
+    if (shareSettings.whatsappGroupUrl) {
+      lines.push('', `🟢 *Join Whatsapp Group:* ${shareSettings.whatsappGroupUrl}`);
+    }
+    return `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`;
+  };
 
   const submitForReview = async (article, translation) => {
     setBusyId(`${article.id}-${translation.language}`);
@@ -209,12 +226,23 @@ export default function MyArticles() {
                                 </Link>
                               ) : null}
                               {translation.status === 'published' ? (
-                                <a
-                                  className="btn btn-xs btn-outline"
-                                  href={`/${translation.language}/news/${translation.slug}`}
-                                >
-                                  View
-                                </a>
+                                <>
+                                  <a
+                                    className="btn btn-xs btn-outline"
+                                    href={`/${translation.language}/news/${translation.slug}`}
+                                  >
+                                    View
+                                  </a>
+                                  <a
+                                    className="btn btn-xs btn-outline"
+                                    href={buildWhatsappShareHref(translation)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Share on WhatsApp"
+                                  >
+                                    WA
+                                  </a>
+                                </>
                               ) : null}
                             </span>
                           ))}

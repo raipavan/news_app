@@ -13,6 +13,7 @@ const {
   flushCloudflareStorage,
   VALID_MODES,
 } = require('../services/storageFlushService');
+const { loadShareSettings, updateShareSettings } = require('../services/shareSettingsService');
 
 const dashboard = asyncHandler(async (req, res) => {
   const [counts, topArticles, pending, activity, revenue] = await Promise.all([
@@ -778,6 +779,27 @@ const flushStorage = asyncHandler(async (req, res) => {
   res.json({ result });
 });
 
+const getShareSettings = asyncHandler(async (req, res) => {
+  const settings = await loadShareSettings({ query });
+  res.json({ settings });
+});
+
+const updateShareSettings = asyncHandler(async (req, res) => {
+  const schema = z.object({
+    whatsappGroupUrl: z.string().trim().max(500).optional(),
+    includeSummaryInShare: z.boolean().optional(),
+  });
+  const data = schema.parse(req.body || {});
+  let settings;
+  try {
+    settings = await updateShareSettings(data, { query });
+  } catch (err) {
+    throw new ApiError(400, err.message || 'Invalid share settings', 'VALIDATION_ERROR');
+  }
+  await audit(null, req.user.id, 'admin.share_settings_updated', 'share', 'whatsapp', settings);
+  res.json({ settings });
+});
+
 module.exports = {
   dashboard,
   pendingArticles,
@@ -806,4 +828,6 @@ module.exports = {
   storageStats,
   updateStorageSettings,
   flushStorage,
+  getShareSettings,
+  updateShareSettings,
 };

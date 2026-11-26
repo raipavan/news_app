@@ -9,6 +9,7 @@ const {
   getPublicDistricts,
 } = require('../services/articleService');
 const { activeAds, resolveClickDestination } = require('../services/adService');
+const { loadShareSettings } = require('../services/shareSettingsService');
 
 const LANGS = ['kn', 'en'];
 
@@ -273,6 +274,11 @@ const ticker = asyncHandler(async (req, res) => {
   res.json({ items: items.map((i) => ({ headline: i.headline, url: i.url })) });
 });
 
+const shareSettings = asyncHandler(async (req, res) => {
+  const settings = await loadShareSettings({ query });
+  res.json({ settings });
+});
+
 module.exports = {
   home,
   latest,
@@ -289,4 +295,5 @@ module.exports = {
   adImpression,
   adClick,
   ticker,
+  shareSettings,
 };

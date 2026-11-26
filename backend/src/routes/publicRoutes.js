@@ -16,6 +16,7 @@ router.get('/districts/:slug/taluks', ctrl.taluks);
 router.get('/news/:slug', ctrl.newsBySlug);
 router.get('/related/:id', ctrl.related);
 router.get('/ads', ctrl.ads);
+router.get('/share-settings', ctrl.shareSettings);
 router.post('/ads/:id/impression', ctrl.adImpression);
 router.get('/ads/:id/click', ctrl.adClick);
 

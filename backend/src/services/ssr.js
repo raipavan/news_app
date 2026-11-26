@@ -1,5 +1,6 @@
 const env = require('../config/env');
 const { imageUrl, absoluteImageUrl } = require('./imageService');
+const { formatWhatsAppShareText } = require('./shareSettingsService');
 
 const LABELS = {
   en: {
@@ -259,13 +260,22 @@ function adMarkup(ad, lang) {
   </div>`;
 }
 
-function shareButtons({ lang, headline, url }) {
+function shareButtons({ lang, headline, summary = '', url, shareSettings = {} }) {
   const text = encodeURIComponent(headline);
   const link = encodeURIComponent(url);
+  const waText = encodeURIComponent(
+    formatWhatsAppShareText({
+      headline,
+      summary,
+      url,
+      whatsappGroupUrl: shareSettings.whatsappGroupUrl,
+      includeSummaryInShare: shareSettings.includeSummaryInShare,
+    })
+  );
   return `
   <div class="share-row">
     <span class="share-label">${escapeHtml(LABELS[lang].share)}</span>
-    <a class="share-btn wa" href="https://wa.me/?text=${text}%20${link}" target="_blank" rel="noopener" data-share="whatsapp" aria-label="Share on WhatsApp" title="WhatsApp">WA</a>
+    <a class="share-btn wa" href="https://wa.me/?text=${waText}" target="_blank" rel="noopener" data-share="whatsapp" aria-label="Share on WhatsApp" title="WhatsApp">WA</a>
     <a class="share-btn fb" href="https://www.facebook.com/sharer/sharer.php?u=${link}" target="_blank" rel="noopener" data-share="facebook" aria-label="Share on Facebook" title="Facebook">f</a>
     <a class="share-btn tg" href="https://t.me/share/url?url=${link}&text=${text}" target="_blank" rel="noopener" data-share="telegram" aria-label="Share on Telegram" title="Telegram">TG</a>
     <a class="share-btn x" href="https://twitter.com/intent/tweet?url=${link}&text=${text}" target="_blank" rel="noopener" data-share="x" aria-label="Share on X" title="X">X</a>
@@ -347,6 +357,9 @@ function pageShell({ lang, base, title, description, canonical, ogImage, extraHe
   <meta property="og:description" content="${escapeHtml(description)}" />
   <meta property="og:url" content="${escapeHtml(canonical)}" />
   <meta property="og:image" content="${escapeHtml(ogImage || `${base}/static/logo.svg`)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="675" />
+  <meta property="og:image:alt" content="${escapeHtml(title)}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(title)}" />
   <meta name="twitter:description" content="${escapeHtml(description)}" />
@@ -395,6 +408,7 @@ function renderArticlePage(article, {
   adsGlobalTop,
   adsGlobalBottom,
   adsFooter,
+  shareSettings = {},
 }) {
   const labels = LABELS[lang];
   const url = `${base}/${lang}/news/${article.slug}`;
@@ -502,7 +516,7 @@ function renderArticlePage(article, {
                 <span class="sep">•</span>
                 <span id="view-count">${Number(article.view_count || 0).toLocaleString('en-IN')} ${escapeHtml(labels.views)}</span>
               </div>
-              ${shareButtons({ lang, headline: article.headline, url })}
+              ${shareButtons({ lang, headline: article.headline, summary: article.summary, url, shareSettings })}
             </div>
           </header>
 

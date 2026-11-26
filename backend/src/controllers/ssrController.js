@@ -3,6 +3,7 @@ const { asyncHandler } = require('../utils/errors');
 const { getPublicArticleBySlug, getPublicCategories, listCards } = require('../services/articleService');
 const { activeAds } = require('../services/adService');
 const { renderArticlePage, renderNotFound, baseUrl } = require('../services/ssr');
+const { loadShareSettings } = require('../services/shareSettingsService');
 
 const LANGS = ['kn', 'en'];
 
@@ -51,11 +52,12 @@ const articlePage = asyncHandler(async (req, res) => {
     districtSlug: article.district_slug,
     path: req.path,
   };
-  const [latest, trending, breakingArticles, allAds] = await Promise.all([
+  const [latest, trending, breakingArticles, allAds, shareSettings] = await Promise.all([
     listCards({ lang, limit: 6 }),
     listCards({ lang, limit: 6, sort: 'trending' }),
     listCards({ lang, limit: 8, breaking: true }),
     activeAds(ARTICLE_AD_PLACEMENTS, scope),
+    loadShareSettings(),
   ]);
 
   const topAdList = placementAds(allAds, ['article_top', 'home_top', 'category']);
@@ -96,6 +98,7 @@ const articlePage = asyncHandler(async (req, res) => {
         adsGlobalTop: globalTopAdList,
         adsGlobalBottom: globalBottomAdList,
         adsFooter: footerAdList,
+        shareSettings,
       })
     );
 });

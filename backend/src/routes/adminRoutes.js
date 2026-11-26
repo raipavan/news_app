@@ -50,5 +50,7 @@ router.get('/audit-logs', superAdminOnly, ctrl.auditLogs);
 router.get('/storage', superAdminOnly, ctrl.storageStats);
 router.put('/storage/settings', superAdminOnly, ctrl.updateStorageSettings);
 router.post('/storage/flush', superAdminOnly, ctrl.flushStorage);
+router.get('/share-settings', superAdminOnly, ctrl.getShareSettings);
+router.put('/share-settings', superAdminOnly, ctrl.updateShareSettings);
 
 module.exports = router;
