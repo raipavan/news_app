@@ -13,7 +13,7 @@ const {
   flushCloudflareStorage,
   VALID_MODES,
 } = require('../services/storageFlushService');
-const { loadShareSettings, updateShareSettings } = require('../services/shareSettingsService');
+const { loadShareSettings, updateShareSettings: saveShareSettings } = require('../services/shareSettingsService');
 
 const dashboard = asyncHandler(async (req, res) => {
   const [counts, topArticles, pending, activity, revenue] = await Promise.all([
@@ -792,7 +792,7 @@ const updateShareSettings = asyncHandler(async (req, res) => {
   const data = schema.parse(req.body || {});
   let settings;
   try {
-    settings = await updateShareSettings(data, { query });
+    settings = await saveShareSettings(data, { query });
   } catch (err) {
     throw new ApiError(400, err.message || 'Invalid share settings', 'VALIDATION_ERROR');
   }
