@@ -20,6 +20,7 @@ const upload = multer({
 });
 
 router.post('/', authenticate, requirePermission('article.create'), upload.single('image'), ctrl.upload);
+router.get('/:id/og.jpg', ctrl.serveOgJpeg);
 router.get('/:id', ctrl.serve);
 router.delete('/:id', authenticate, ctrl.remove);
 

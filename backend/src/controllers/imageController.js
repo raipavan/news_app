@@ -1,7 +1,7 @@
 const { query, tx } = require('../db');
 const env = require('../config/env');
 const { asyncHandler, ApiError } = require('../utils/errors');
-const { storeImage, resolveImage, imageUrl, deleteImage } = require('../services/imageService');
+const { storeImage, resolveImage, buildOgJpegFromSource, imageUrl, deleteImage } = require('../services/imageService');
 const { publicUrlForKey } = require('../services/r2Storage');
 const { isStaff } = require('../utils/permissions');
 const { audit } = require('../utils/audit');
@@ -61,6 +61,20 @@ const serve = asyncHandler(async (req, res) => {
   return res.send(image.binary_data);
 });
 
+const serveOgJpeg = asyncHandler(async (req, res) => {
+  const jpegBuffer = await buildOgJpegFromSource({ query }, req.params.id);
+  if (!jpegBuffer) throw new ApiError(404, 'Image not found', 'NOT_FOUND');
+  res.set({
+    'Content-Type': 'image/jpeg',
+    'Content-Length': String(jpegBuffer.length),
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'CDN-Cache-Control': 'public, max-age=31536000, immutable',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Disposition': 'inline',
+  });
+  return res.send(jpegBuffer);
+});
+
 const remove = asyncHandler(async (req, res) => {
   const image = await query('SELECT id, parent_id, uploaded_by FROM images WHERE id = $1', [
     req.params.id,
@@ -102,4 +116,4 @@ const articleImages = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { upload, serve, remove, articleImages };
+module.exports = { upload, serve, serveOgJpeg, remove, articleImages };

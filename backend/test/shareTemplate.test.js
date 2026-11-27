@@ -73,8 +73,11 @@ test('renderArticlePage renders Open Graph dimensions and formatted wa.me share 
     }
   );
 
+  assert.match(html, /<meta property="og:image" content="https:\/\/tajanewssuddi\.in\/api\/v1\/images\/11111111-1111-4111-8111-111111111111\/og\.jpg" \/>/);
+  assert.match(html, /<meta property="og:image:secure_url" content="https:\/\/tajanewssuddi\.in\/api\/v1\/images\/11111111-1111-4111-8111-111111111111\/og\.jpg" \/>/);
+  assert.match(html, /<meta property="og:image:type" content="image\/jpeg" \/>/);
   assert.match(html, /<meta property="og:image:width" content="1200" \/>/);
-  assert.match(html, /<meta property="og:image:height" content="675" \/>/);
+  assert.match(html, /<meta property="og:image:height" content="630" \/>/);
   const expectedText = encodeURIComponent(
     '🔶 *ಧರ್ಮಸ್ಥಳ ಪಾದಯಾತ್ರೆ*\n\nhttps://tajanewssuddi.in/kn/news/dharmasthala-padayatre\n\n🟢 *Join Whatsapp Group:* https://chat.whatsapp.com/ABC123'
   );

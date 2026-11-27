@@ -340,7 +340,15 @@ function footer(lang) {
 </footer>`;
 }
 
-function pageShell({ lang, base, title, description, canonical, ogImage, extraHead = '', body, categories, tickerItems, alternates = [], selfUrl = '' }) {
+function pageShell({ lang, base, title, description, canonical, ogImage, ogImageWidth = 1200, ogImageHeight = 630, extraHead = '', body, categories, tickerItems, alternates = [], selfUrl = '' }) {
+  const resolvedOgImage = ogImage || `${base}/static/logo.svg`;
+  const ogImageType = /\.jpe?g(\?|$)/i.test(resolvedOgImage)
+    ? 'image/jpeg'
+    : /\.png(\?|$)/i.test(resolvedOgImage)
+      ? 'image/png'
+      : /\.webp(\?|$)/i.test(resolvedOgImage)
+        ? 'image/webp'
+        : 'image/svg+xml';
   return `<!doctype html>
 <html lang="${lang}">
 <head>
@@ -356,14 +364,16 @@ function pageShell({ lang, base, title, description, canonical, ogImage, extraHe
   <meta property="og:title" content="${escapeHtml(title)}" />
   <meta property="og:description" content="${escapeHtml(description)}" />
   <meta property="og:url" content="${escapeHtml(canonical)}" />
-  <meta property="og:image" content="${escapeHtml(ogImage || `${base}/static/logo.svg`)}" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="675" />
+  <meta property="og:image" content="${escapeHtml(resolvedOgImage)}" />
+  <meta property="og:image:secure_url" content="${escapeHtml(resolvedOgImage)}" />
+  <meta property="og:image:type" content="${ogImageType}" />
+  <meta property="og:image:width" content="${ogImageWidth}" />
+  <meta property="og:image:height" content="${ogImageHeight}" />
   <meta property="og:image:alt" content="${escapeHtml(title)}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(title)}" />
   <meta name="twitter:description" content="${escapeHtml(description)}" />
-  <meta name="twitter:image" content="${escapeHtml(ogImage || `${base}/static/logo.svg`)}" />
+  <meta name="twitter:image" content="${escapeHtml(resolvedOgImage)}" />
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -411,8 +421,11 @@ function renderArticlePage(article, {
   shareSettings = {},
 }) {
   const labels = LABELS[lang];
-  const url = `${base}/${lang}/news/${article.slug}`;
+  const url = `${base}/${lang}/news/${encodeURIComponent(article.slug)}`;
   const image = article.main_image_id ? absoluteImageUrl(article.main_image_id, 'optimized', base) : `${base}/static/logo.svg`;
+  const ogImage = article.main_image_id
+    ? `${base}/api/v1/images/${encodeURIComponent(article.main_image_id)}/og.jpg`
+    : `${base}/static/logo.svg`;
   const imageWidth = 1200;
   const imageHeight = 675;
   const title = article.seo_title || article.headline;
@@ -611,7 +624,9 @@ function renderArticlePage(article, {
     title,
     description,
     canonical: url,
-    ogImage: image,
+    ogImage,
+    ogImageWidth: 1200,
+    ogImageHeight: 630,
     extraHead: `${altLinks.join('\n  ')}
   <meta property="og:type" content="article" />
   <meta property="article:published_time" content="${escapeHtml(published || '')}" />

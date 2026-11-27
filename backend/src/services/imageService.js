@@ -363,11 +363,40 @@ async function deleteImageIfUnreferenced(db, imageId, r2 = r2Storage) {
   return deleteImage(db, rootId, r2);
 }
 
+async function buildOgJpegFromBuffer(buffer) {
+  return sharp(buffer)
+    .rotate()
+    .resize({ width: 1200, height: 630, fit: 'cover', position: 'attention' })
+    .jpeg({ quality: 82, progressive: true })
+    .toBuffer();
+}
+
+async function buildOgJpegFromSource(db, id, r2Config = env.r2, fetchImpl = fetch) {
+  let image = await resolveImage(db, id, 'optimized');
+  if (!image) image = await resolveImage(db, id, 'original');
+  if (!image) return null;
+
+  let sourceBuffer = image.binary_data || null;
+  if (!sourceBuffer && image.storage_provider === 'r2' && image.storage_key && r2Config?.publicBaseUrl) {
+    const sourceUrl = r2Storage.publicUrlForKey(image.storage_key, r2Config.publicBaseUrl);
+    if (sourceUrl) {
+      const res = await fetchImpl(sourceUrl, { signal: AbortSignal.timeout(10000) });
+      if (res.ok) {
+        sourceBuffer = Buffer.from(await res.arrayBuffer());
+      }
+    }
+  }
+  if (!sourceBuffer) return null;
+  return buildOgJpegFromBuffer(sourceBuffer);
+}
+
 module.exports = {
   storeImage,
   imageUrl,
   absoluteImageUrl,
   resolveImage,
+  buildOgJpegFromBuffer,
+  buildOgJpegFromSource,
   deleteImage,
   deleteImageIfUnreferenced,
   extractInlineImageIds,
