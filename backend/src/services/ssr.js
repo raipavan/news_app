@@ -263,19 +263,19 @@ function adMarkup(ad, lang) {
 function shareButtons({ lang, headline, summary = '', url, shareSettings = {} }) {
   const text = encodeURIComponent(headline);
   const link = encodeURIComponent(url);
-  const waText = encodeURIComponent(
-    formatWhatsAppShareText({
-      headline,
-      summary,
-      url,
-      whatsappGroupUrl: shareSettings.whatsappGroupUrl,
-      includeSummaryInShare: shareSettings.includeSummaryInShare,
-    })
-  );
+  const waRawText = formatWhatsAppShareText({
+    headline,
+    summary,
+    url,
+    whatsappGroupUrl: shareSettings.whatsappGroupUrl,
+    includeSummaryInShare: shareSettings.includeSummaryInShare,
+  });
+  const waText = encodeURIComponent(waRawText);
   return `
   <div class="share-row">
     <span class="share-label">${escapeHtml(LABELS[lang].share)}</span>
     <a class="share-btn wa" href="https://wa.me/?text=${waText}" target="_blank" rel="noopener" data-share="whatsapp" aria-label="Share on WhatsApp" title="WhatsApp">WA</a>
+    <button class="share-btn" type="button" data-copy-text="${escapeHtml(waRawText)}" aria-label="Copy WhatsApp Post" title="Copy WhatsApp Post">📋</button>
     <a class="share-btn fb" href="https://www.facebook.com/sharer/sharer.php?u=${link}" target="_blank" rel="noopener" data-share="facebook" aria-label="Share on Facebook" title="Facebook">f</a>
     <a class="share-btn tg" href="https://t.me/share/url?url=${link}&text=${text}" target="_blank" rel="noopener" data-share="telegram" aria-label="Share on Telegram" title="Telegram">TG</a>
     <a class="share-btn x" href="https://twitter.com/intent/tweet?url=${link}&text=${text}" target="_blank" rel="noopener" data-share="x" aria-label="Share on X" title="X">X</a>
@@ -356,9 +356,6 @@ function pageShell({ lang, base, title, description, canonical, ogImage, ogImage
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}" />
-  <link rel="canonical" href="${escapeHtml(canonical)}" />
-  <meta name="robots" content="index, follow, max-image-preview:large" />
-  <meta name="theme-color" content="#a4162a" />
   <meta property="og:site_name" content="Thaja Suddi" />
   <meta property="og:locale" content="${lang === 'kn' ? 'kn_IN' : 'en_IN'}" />
   <meta property="og:title" content="${escapeHtml(title)}" />
@@ -374,6 +371,9 @@ function pageShell({ lang, base, title, description, canonical, ogImage, ogImage
   <meta name="twitter:title" content="${escapeHtml(title)}" />
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   <meta name="twitter:image" content="${escapeHtml(resolvedOgImage)}" />
+  <link rel="canonical" href="${escapeHtml(canonical)}" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="theme-color" content="#a4162a" />
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

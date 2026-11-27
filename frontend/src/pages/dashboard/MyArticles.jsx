@@ -38,7 +38,7 @@ export default function MyArticles() {
   const items = data?.items || [];
   const shareSettings = shareApi.data?.settings || {};
 
-  const buildWhatsappShareHref = (translation) => {
+  const buildWhatsappShareText = (translation) => {
     const url = `${window.location.origin}/${translation.language}/news/${translation.slug}`;
     const cleanHeadline = (translation.headline || '').trim();
     const cleanSummary = (translation.summary || '').trim();
@@ -50,7 +50,19 @@ export default function MyArticles() {
     if (shareSettings.whatsappGroupUrl) {
       lines.push('', `🟢 *Join Whatsapp Group:* ${shareSettings.whatsappGroupUrl}`);
     }
-    return `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`;
+    return lines.join('\n');
+  };
+
+  const buildWhatsappShareHref = (translation) =>
+    `https://wa.me/?text=${encodeURIComponent(buildWhatsappShareText(translation))}`;
+
+  const copyWhatsappShare = async (translation) => {
+    try {
+      await navigator.clipboard.writeText(buildWhatsappShareText(translation));
+      notify('WhatsApp post copied! Paste in WhatsApp and wait 1s for preview.', 'success');
+    } catch {
+      notify('Could not copy to clipboard', 'error');
+    }
   };
 
   const submitForReview = async (article, translation) => {
@@ -242,6 +254,14 @@ export default function MyArticles() {
                                   >
                                     WA
                                   </a>
+                                  <button
+                                    type="button"
+                                    className="btn btn-xs btn-outline"
+                                    onClick={() => copyWhatsappShare(translation)}
+                                    title="Copy formatted WhatsApp post"
+                                  >
+                                    Copy WA
+                                  </button>
                                 </>
                               ) : null}
                             </span>

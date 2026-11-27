@@ -306,6 +306,24 @@
     });
   });
 
+  document.querySelectorAll('[data-copy-text]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const text = button.dataset.copyText || '';
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const temp = document.createElement('textarea');
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        temp.remove();
+      }
+      toast(isKn ? 'ವಾಟ್ಸಾಪ್ ಪೋಸ್ಟ್ ನಕಲಾಗಿದೆ' : 'WhatsApp post copied');
+      recordShare('whatsapp');
+    });
+  });
+
   // ---- Report modal ----
   const modal = document.getElementById('report-modal');
   const openModal = () => modal?.classList.add('open');
